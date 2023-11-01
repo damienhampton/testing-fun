@@ -6,4 +6,4 @@ export const myApp = new MyApp();
 
 const myTestApp = new MyTestApp(myApp);
 
-applicationTest(myTestApp, 10);
+applicationTest(myTestApp, 1000);

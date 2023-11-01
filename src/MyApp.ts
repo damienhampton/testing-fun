@@ -99,6 +99,13 @@ export class MyApp implements TwitterInterface {
       return;
     }
     const userId = session.userId;
+    const user = this.users.find((u) => u.user.userId === userId);
+    if (!user) {
+      return;
+    }
+    if (user.user.username === username) {
+      return;
+    }
     const otherUser = this.users.find((u) => u.user.username === username);
     const subscriber: Subscriber = { userId };
     otherUser?.subscribers.push(subscriber);
