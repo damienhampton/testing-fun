@@ -7,6 +7,7 @@ import {
   User,
   Session,
 } from "../src/model";
+import { mapLimit } from "async";
 
 export type TestSession = Session & User;
 
@@ -35,7 +36,8 @@ export interface TwitterTestInterface {
 
 export function applicationTest(
   testApplication: TwitterTestInterface,
-  numUsers: number
+  numUsers: number,
+  concurrency = 1
 ) {
   const perfObserver = new PerformanceObserver((items) => {
     items.getEntries().forEach((entry) => {
@@ -54,10 +56,16 @@ export function applicationTest(
           } entries`, async () => {
             perfStart("session-create");
             const userSessions: TestSession[] = (
-              await Promise.all(
-                range(numUsers).map((ii) =>
-                  testApplication.createAuthenticatedUsers(`username-${ii}`)
-                )
+              await mapLimit<number, TestResponse<TestSession>>(
+                range(numUsers),
+                concurrency,
+                async (ii: number, callback) =>
+                  callback(
+                    null,
+                    await testApplication.createAuthenticatedUsers(
+                      `username-${ii}`
+                    )
+                  )
               )
             )
               .filter((response) => response.success && response.data)
@@ -65,35 +73,51 @@ export function applicationTest(
             perfEnd("session-create");
 
             perfStart("subscriptions");
-            await Promise.all(
-              userSessions.map((session) =>
-                userSessions.map(({ username }) =>
-                  testApplication.subscribe(session.token, username)
-                )
-              )
+            await mapLimit<TestSession, null>(
+              userSessions,
+              concurrency,
+              async (session, callback) => {
+                await mapLimit<TestSession, null>(
+                  userSessions,
+                  concurrency,
+                  async ({ username }, callback2) => {
+                    await testApplication.subscribe(session.token, username);
+                    callback2(null);
+                  }
+                );
+                callback(null);
+              }
             );
             perfEnd("subscriptions");
 
             perfStart("postMessage");
-            await Promise.all(
-              userSessions.map((session) =>
-                testApplication.postMessage(
+            await mapLimit<TestSession, null>(
+              userSessions,
+              concurrency,
+              async (session, callback) => {
+                await testApplication.postMessage(
                   session.token,
                   `Message by user ${session.username}`
-                )
-              )
+                );
+                callback(null);
+              }
             );
             perfEnd("postMessage");
 
             perfStart("getFeed");
-            await Promise.all(
-              userSessions.map(async (session) => {
-                const response = await testApplication.getFeed(session.token);
+            const responses = await mapLimit<
+              TestSession,
+              TestResponse<TwitterFeed>
+            >(userSessions, concurrency, async (session, callback) => {
+              const response = await testApplication.getFeed(session.token);
 
-                expect(response.data?.entries.length).to.equal(numUsers - 1);
-              })
-            );
+              callback(null, response);
+            });
             perfEnd("getFeed");
+
+            responses.map((response) =>
+              expect(response.data?.entries.length).to.equal(numUsers - 1)
+            );
           });
         });
       });
