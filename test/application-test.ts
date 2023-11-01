@@ -1,3 +1,4 @@
+import { performance, PerformanceObserver } from "perf_hooks";
 import { expect } from "chai";
 import {
   TwitterFeed,
@@ -36,40 +37,55 @@ export function applicationTest(
   testApplication: TwitterTestInterface,
   numUsers: number
 ) {
-  describe("twitter-clone", async () => {
-    context(`given ${numUsers} users`, async () => {
-      const userSessions: TestSession[] = (
-        await Promise.all(
-          range(numUsers).map((ii) =>
-            testApplication.createAuthenticatedUsers(`username-${ii}`)
-          )
-        )
-      )
-        .filter((response) => response.success && response.data)
-        .map((response) => response.data as TestSession);
+  const perfObserver = new PerformanceObserver((items) => {
+    items.getEntries().forEach((entry) => {
+      console.log(entry);
+    });
+  });
 
-      context("and each user is subscribed to the rest", async () => {
-        await Promise.all(
-          userSessions.map((session) =>
-            userSessions.map(({ username }) =>
-              testApplication.subscribe(session.token, username)
-            )
-          )
-        );
+  perfObserver.observe({ entryTypes: ["measure"], buffered: true });
 
-        context("and each user posts one message", async () => {
-          await Promise.all(
-            userSessions.map((session) =>
-              testApplication.postMessage(
-                session.token,
-                `Message by user ${session.username}`
-              )
-            )
-          );
-
+  describe("twitter-clone", () => {
+    context(`given ${numUsers} users`, () => {
+      context("and each user is subscribed to the rest", () => {
+        context("and each user posts one message", () => {
           it(`should return a feed for each user with ${
             numUsers - 1
           } entries`, async () => {
+            perfStart("session-create");
+            const userSessions: TestSession[] = (
+              await Promise.all(
+                range(numUsers).map((ii) =>
+                  testApplication.createAuthenticatedUsers(`username-${ii}`)
+                )
+              )
+            )
+              .filter((response) => response.success && response.data)
+              .map((response) => response.data as TestSession);
+            perfEnd("session-create");
+
+            perfStart("subscriptions");
+            await Promise.all(
+              userSessions.map((session) =>
+                userSessions.map(({ username }) =>
+                  testApplication.subscribe(session.token, username)
+                )
+              )
+            );
+            perfEnd("subscriptions");
+
+            perfStart("postMessage");
+            await Promise.all(
+              userSessions.map((session) =>
+                testApplication.postMessage(
+                  session.token,
+                  `Message by user ${session.username}`
+                )
+              )
+            );
+            perfEnd("postMessage");
+
+            perfStart("getFeed");
             await Promise.all(
               userSessions.map(async (session) => {
                 const response = await testApplication.getFeed(session.token);
@@ -77,6 +93,7 @@ export function applicationTest(
                 expect(response.data?.entries.length).to.equal(numUsers - 1);
               })
             );
+            perfEnd("getFeed");
           });
         });
       });
@@ -88,3 +105,9 @@ const range = (n: number) =>
   Array(n)
     .fill(0)
     .map((_, ii) => ii);
+
+const perfStart = (name: string) => performance.mark(`${name}-start`);
+const perfEnd = (name: string) => {
+  performance.mark(`${name}-end`);
+  performance.measure(name, `${name}-start`, `${name}-end`);
+};
