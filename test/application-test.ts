@@ -57,7 +57,7 @@ export function applicationTest(
           )
         );
 
-        context("add each user posts one message", async () => {
+        context("and each user posts one message", async () => {
           await Promise.all(
             userSessions.map((session) =>
               testApplication.postMessage(
