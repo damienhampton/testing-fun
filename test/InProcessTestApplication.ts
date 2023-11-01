@@ -8,7 +8,7 @@ import { TwitterFeed, TwitterToken, TwitterUsername } from "../src/model";
 import { TwitterInterface } from "../src/MyApp";
 
 const password = "pwd";
-export class MyTestApp implements TwitterTestInterface {
+export class InProcessTestApplication implements TwitterTestInterface {
   constructor(private myApp: TwitterInterface) {}
 
   async createAuthenticatedUsers(
