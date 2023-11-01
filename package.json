@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "ts-node src/app.ts",
-    "test": "mocha"
+    "test:in-process": "mocha --grep @in-process",
+    "test:out-of-process": "mocha --grep @out-of-process"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",

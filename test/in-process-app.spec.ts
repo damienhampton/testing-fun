@@ -6,6 +6,6 @@ export const myApp = new MyApp();
 
 const myTestApp = new InProcessTestApplication(myApp);
 
-describe.skip("in-process app", () => {
+describe.skip("in-process app @in-process", () => {
   applicationTest(myTestApp, 100);
 });
